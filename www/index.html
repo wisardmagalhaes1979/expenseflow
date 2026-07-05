@@ -491,7 +491,7 @@ canvas{display:none}
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
         <span>Minhas Despesas</span>
       </button>
-      <button class="nav-btn" id="nav-aprovacao" data-page="aprovacao">
+      <button class="nav-btn" id="nav-aprovacao" data-page="aprovacao" style="display:none">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         <span>Aprovação</span>
         <span class="nav-badge" id="badge-aprovacao"></span>
@@ -504,11 +504,11 @@ canvas{display:none}
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         <span>Rel. Detalhado</span>
       </button>
-      <button class="nav-btn" id="nav-usuarios" data-page="usuarios">
+      <button class="nav-btn" id="nav-usuarios" data-page="usuarios" style="display:none">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
         <span>Usuários</span>
       </button>
-      <button class="nav-btn" onclick="openLimitsModal()" style="cursor:pointer">
+      <button class="nav-btn" id="nav-limites" onclick="openLimitsModal()" style="display:none;cursor:pointer">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
         <span>Limites</span>
       </button>
@@ -941,6 +941,7 @@ function toggleLimitField(key){
   else input.value=0;
 }
 function openLimitsModal(){
+  if(!currentUser||currentUser.role!=='admin')return;
   for(const [key,category] of Object.entries(LIMIT_FIELDS)){
     const value=categoryLimits[category]||0;
     const chk=document.getElementById('chk-'+key);
@@ -1013,9 +1014,10 @@ async function doLogin(){
     document.getElementById('sb-name').textContent=u.name;
     document.getElementById('sb-role').textContent=ROLE_LABEL[u.role]||u.role;
     // Todos os 7 botões sempre visíveis
-    document.getElementById('nav-aprovacao').style.display='flex';
+    document.getElementById('nav-aprovacao').style.display=can.approve(u)?'flex':'none';
     document.getElementById('nav-relatorios').style.display='flex';
-    document.getElementById('nav-usuarios').style.display='flex';
+    document.getElementById('nav-usuarios').style.display=can.manageUsers(u)?'flex':'none';
+    document.getElementById('nav-limites').style.display=u.role==='admin'?'flex':'none';
     if(can.seeAll(u)){
       document.getElementById('minhas-title').textContent='Todas as Despesas';
       document.getElementById('minhas-sub').textContent='Visão consolidada de todos os colaboradores';
@@ -1047,6 +1049,8 @@ function doLogout(){
 
 // ── NAV ───────────────────────────────────────────
 function goPage(id){
+  if(id==='usuarios'&&!can.manageUsers(currentUser))id='dashboard';
+  if(id==='aprovacao'&&!can.approve(currentUser))id='dashboard';
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
@@ -1548,7 +1552,7 @@ function renderDashCharts(src){
 
 // ── REPORTS ───────────────────────────────────────
 function renderReports(){
-  const src=allExpenses,total=sum(src)||1,pct=v=>((v/total)*100).toFixed(1)+'%';
+  const src=can.seeAll(currentUser)?allExpenses:myExpenses,total=sum(src)||1,pct=v=>((v/total)*100).toFixed(1)+'%';
   const donut=[{label:'Aprovado',v:sum(src.filter(e=>e.status==='approved')),color:'#16a34a'},{label:'Pendente',v:sum(src.filter(e=>e.status==='pending')),color:'#d97706'},{label:'Rejeitado',v:sum(src.filter(e=>e.status==='rejected')),color:'#dc2626'}].filter(d=>d.v>0);
   const cx=80,cy=80,r=62,ri=40,toRad=a=>a*Math.PI/180;
   let angle=-90,paths='';
