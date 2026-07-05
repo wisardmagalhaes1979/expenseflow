@@ -1,0 +1,20 @@
+# Dependências (reinstale com "npm install")
+node_modules/
+
+# Backups e arquivos de teste gerados durante o desenvolvimento
+*.bak
+*.backup
+index.backup-*.html
+*_TESTE.html
+*.truncated.bak
+
+# Build/APK gerados (regenere com Android Studio / gradlew)
+android/app/build/
+android/app/release/
+android/build/
+*.apk
+*.aab
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db

@@ -1,0 +1,48 @@
+{
+  "appId": "com.expenseflowwisard",
+  "appName": "ExpenseFlow",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#f0f2f5",
+    "initialFocus": true,
+    "minWebViewVersion": 80,
+    "useLegacyBridge": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "launchAutoHide": true,
+      "backgroundColor": "#2563eb",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "Keyboard": {
+      "resize": "none",
+      "style": "dark",
+      "resizeOnFullScreen": false
+    },
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#1e293b",
+      "overlaysWebView": false
+    },
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "Filesystem": {
+      "permissions": ["READ", "WRITE"]
+    },
+    "Share": {},
+    "EmailComposer": {}
+  }
+}
