@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expenseflow-v1';
+const CACHE_NAME = 'expenseflow-v2';
 
 // Arquivos que ficam em cache para funcionar offline
 const ASSETS = [
@@ -70,19 +70,15 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // App shell (HTML, manifest, icons): cache first, atualiza em background
+  // App shell (HTML, manifest, icons): network first, cache como fallback offline
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      const networkFetch = fetch(event.request).then(response => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => cached);
-
-      return cached || networkFetch;
-    })
+    fetch(event.request).then(response => {
+      if (response.ok) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+      }
+      return response;
+    }).catch(() => caches.match(event.request))
   );
 });
 
