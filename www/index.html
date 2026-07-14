@@ -1701,7 +1701,8 @@ async function renderRelDetail(){
   const data=getRelDetailData();
   const stLabel={pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado'};
   if(!data.length){document.getElementById('rel-detail-body').innerHTML='<div class="empty-state"><div class="empty-icon">🗂️</div><div class="empty-text">Nenhuma despesa encontrada.</div></div>';return;}
-  await hydrateNf(data);
+  const pageVisible=document.getElementById('page-rel-detail')?.classList.contains('active');
+  if(pageVisible)await hydrateNf(data);
   const grouped={};
   data.forEach(e=>{const k=e.requester||'?';if(!grouped[k])grouped[k]=[];grouped[k].push(e);});
   document.getElementById('rel-detail-body').innerHTML=Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).map(([name,items])=>{
