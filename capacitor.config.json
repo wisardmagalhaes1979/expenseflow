@@ -3,6 +3,7 @@
   "appName": "ExpenseFlow",
   "webDir": "www",
   "server": {
+    "url": "https://expenseflow.wisardnas.cloud",
     "androidScheme": "https",
     "cleartext": false
   },
