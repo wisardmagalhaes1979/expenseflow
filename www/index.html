@@ -179,6 +179,11 @@ canvas{display:none}
 .approval-user-meta{font-size:12px;color:var(--g500);margin-top:2px}
 .approval-user-total{margin-left:auto;font-size:14px;font-weight:700;color:var(--w)}
 .approval-expense-row{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--g100)}
+.approval-expense-row.selected{background:var(--pl)}
+.aprov-check{width:20px;height:20px;flex-shrink:0;cursor:pointer;accent-color:var(--p)}
+.aprov-bulk-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--g200);border-radius:12px;padding:12px 16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05);position:sticky;top:0;z-index:5}
+.aprov-bulk-bar label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--g700);cursor:pointer}
+.aprov-bulk-count{font-size:12px;color:var(--g500);margin-left:auto}
 .approval-expense-row:last-child{border-bottom:none}
 .approval-expense-row:hover{background:var(--g50)}
 .approval-desc{flex:1;min-width:0}
@@ -208,6 +213,18 @@ canvas{display:none}
 .rd-summary{background:linear-gradient(135deg, var(--p), var(--pd));padding:18px 24px;display:grid;grid-template-columns:repeat(5,1fr);gap:16px;border-top:1px solid var(--g200);color:#fff}
 .rd-summary-item label{font-size:9px;font-weight:700;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
 .rd-summary-item span{font-size:16px;font-weight:700;color:#fff}
+.rd-month-folder{background:#fff;border:1px solid var(--g200);border-radius:12px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.rd-month-head{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none;transition:background .15s}
+.rd-month-head:hover{background:var(--g50)}
+.rd-month-icon{font-size:26px;line-height:1}
+.rd-month-name{font-size:15px;font-weight:700;color:var(--g800)}
+.rd-month-meta{font-size:11px;color:var(--g500);margin-top:2px}
+.rd-month-total{margin-left:auto;font-size:15px;font-weight:700;color:var(--p);white-space:nowrap}
+.rd-month-arrow{font-size:12px;color:var(--g400);transition:transform .2s;margin-left:6px}
+.rd-month-folder.open .rd-month-arrow{transform:rotate(90deg)}
+.rd-month-folder.open .rd-month-head{border-bottom:1px solid var(--g200);background:var(--pl)}
+.rd-month-body{padding:16px;background:var(--g50)}
+.rd-month-body .rd-user-section:last-child{margin-bottom:0}
 .pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--g100);background:var(--g50)}
 .pagination-info{font-size:12px;color:var(--g500)}
 .pagination-btns{display:flex;gap:6px}
@@ -1391,6 +1408,40 @@ function renderMinhas(page){
 }
 
 // ── APROVAÇÃO ─────────────────────────────────────
+let aprovSelected=new Set();
+function toggleAprovSel(id,checked){
+  id=String(id);
+  if(checked)aprovSelected.add(id);else aprovSelected.delete(id);
+  renderAprovacao();
+}
+function toggleAprovSelectAll(checked){
+  const pend=allExpenses.filter(e=>e.status==='pending');
+  aprovSelected=checked?new Set(pend.map(e=>String(e.id))):new Set();
+  renderAprovacao();
+}
+async function bulkUpdateStatus(status){
+  const ids=[...aprovSelected];
+  if(!ids.length){toast('Nenhuma despesa selecionada','error');return;}
+  const sel=allExpenses.filter(e=>ids.includes(String(e.id)));
+  const acao=status==='approved'?'APROVAR':'REJEITAR';
+  if(!confirm(`${acao} ${sel.length} despesa${sel.length!==1?'s':''} no total de ${fmtBRL(sum(sel))}?`))return;
+  loading(true,'Atualizando…');
+  let ok=0,fail=0;
+  for(const e of sel){
+    try{
+      await DB.updateExpense(e.id,{status});
+      allExpenses=allExpenses.map(x=>x.id===e.id?{...x,status}:x);
+      myExpenses=myExpenses.map(x=>x.id===e.id?{...x,status}:x);
+      ok++;
+    }catch(err){fail++;}
+  }
+  aprovSelected=new Set();
+  loading(false);
+  updateBadge();renderAprovacao();
+  if(typeof renderDashboard==='function')renderDashboard();
+  if(fail)toast(`${ok} atualizada(s), ${fail} com erro`,'error');
+  else toast(status==='approved'?`${ok} despesa(s) aprovada(s) ✓`:`${ok} despesa(s) rejeitada(s)`,status==='approved'?'success':'error');
+}
 function renderAprovacao(){
   const src=aprovFilter==='pending'?allExpenses.filter(e=>e.status==='pending'):allExpenses;
   if(!src.length){
@@ -1401,10 +1452,23 @@ function renderAprovacao(){
   src.forEach(e=>{const k=e.requester||'?';if(!grouped[k])grouped[k]=[];grouped[k].push(e);});
   const stLabel={pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado'};
   const isApprover=can.approve(currentUser);
-  document.getElementById('aprovacao-list').innerHTML=Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).map(([name,items])=>{
+  const pendAll=allExpenses.filter(e=>e.status==='pending');
+  const pendIds=new Set(pendAll.map(e=>String(e.id)));
+  aprovSelected=new Set([...aprovSelected].filter(id=>pendIds.has(id)));
+  const nSel=aprovSelected.size;
+  const allSel=pendAll.length>0&&nSel===pendAll.length;
+  const selTotal=sum(pendAll.filter(e=>aprovSelected.has(String(e.id))));
+  const bulkBar=(isApprover&&pendAll.length)?`<div class="aprov-bulk-bar">
+      <label><input type="checkbox" class="aprov-check" ${allSel?'checked':''} onchange="toggleAprovSelectAll(this.checked)"> Selecionar todos (${pendAll.length})</label>
+      <span class="aprov-bulk-count">${nSel?`${nSel} selecionada${nSel!==1?'s':''} · ${fmtBRL(selTotal)}`:'Nenhuma selecionada'}</span>
+      <button class="btn btn-success btn-sm" onclick="bulkUpdateStatus('approved')" ${nSel?'':'disabled'}>✓ Aprovar selecionadas</button>
+      <button class="btn btn-danger btn-sm" onclick="bulkUpdateStatus('rejected')" ${nSel?'':'disabled'}>✗ Rejeitar selecionadas</button>
+    </div>`:'';
+  document.getElementById('aprovacao-list').innerHTML=bulkBar+Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).map(([name,items])=>{
     const pendCount=items.filter(e=>e.status==='pending').length;
     const rows=items.map(e=>`
-      <div class="approval-expense-row">
+      <div class="approval-expense-row${aprovSelected.has(String(e.id))?' selected':''}">
+        ${isApprover&&e.status==='pending'?`<input type="checkbox" class="aprov-check" ${aprovSelected.has(String(e.id))?'checked':''} onchange="toggleAprovSel('${e.id}',this.checked)">`:''}
         ${e.nf?`<img src="${e.nf}" class="nf-thumb" data-id="${e.id}" style="flex-shrink:0">`:e.has_nf?`<span class="nf-thumb" data-id="${e.id}" title="Ver NF" style="width:36px;height:36px;border-radius:6px;background:var(--g100);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;cursor:pointer">🧾</span>`:'<div style="width:36px;height:36px;border-radius:6px;background:var(--g100);display:flex;align-items:center;justify-content:center;flex-shrink:0">📄</div>'}
         <div class="approval-desc">
           <div class="approval-desc-name">${esc(e.description||'')}</div>
@@ -1696,16 +1760,31 @@ function getRelDetailData(){
     return true;
   });
 }
+const MONTH_NAMES={'01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho','07':'Julho','08':'Agosto','09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro'};
+let relOpenMonths=new Set();
+function toggleRelMonth(m){
+  if(relOpenMonths.has(m))relOpenMonths.delete(m);else relOpenMonths.add(m);
+  renderRelDetail();
+}
 async function renderRelDetail(){
   populateRelDetailFilters();
   const data=getRelDetailData();
   const stLabel={pending:'Pendente',approved:'Aprovado',rejected:'Rejeitado'};
   if(!data.length){document.getElementById('rel-detail-body').innerHTML='<div class="empty-state"><div class="empty-icon">🗂️</div><div class="empty-text">Nenhuma despesa encontrada.</div></div>';return;}
   const pageVisible=document.getElementById('page-rel-detail')?.classList.contains('active');
-  if(pageVisible)await hydrateNf(data);
-  const grouped={};
-  data.forEach(e=>{const k=e.requester||'?';if(!grouped[k])grouped[k]=[];grouped[k].push(e);});
-  document.getElementById('rel-detail-body').innerHTML=Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).map(([name,items])=>{
+  const mfSel=document.getElementById('rel-month')?.value||'';
+  // Agrupa por mês do relatório (report_month)
+  const byMonth={};
+  data.forEach(e=>{const m=e.report_month||'';(byMonth[m]=byMonth[m]||[]).push(e);});
+  const months=Object.keys(byMonth).sort((a,b)=>(b||'00').localeCompare(a||'00'));
+  if(mfSel)relOpenMonths.add(mfSel);
+  // Carrega as notas fiscais só das pastas abertas
+  const openItems=months.filter(m=>relOpenMonths.has(m)).flatMap(m=>byMonth[m]);
+  if(pageVisible&&openItems.length)await hydrateNf(openItems);
+  const renderUsers=list=>{
+    const grouped={};
+    list.forEach(e=>{const k=e.requester||'?';if(!grouped[k])grouped[k]=[];grouped[k].push(e);});
+    return Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).map(([name,items])=>{
     const totalVal=sum(items);
     const rows=items.map(e=>`
       <div class="rd-expense-item">
@@ -1732,6 +1811,22 @@ async function renderRelDetail(){
         <div class="rd-summary-item"><label>Rejeitado</label><span style="color:var(--r)">${fmtBRL(sum(rejected))}</span></div>
         <div class="rd-summary-item"><label>Qtd</label><span>${items.length}</span></div>
       </div></div>`;
+    }).join('');
+  };
+  document.getElementById('rel-detail-body').innerHTML=months.map(m=>{
+    const items=byMonth[m];
+    const open=relOpenMonths.has(m);
+    const nUsers=new Set(items.map(e=>e.requester||'?')).size;
+    const label=m?(MONTH_NAMES[m]||('Mês '+m)):'Sem mês informado';
+    return `<div class="rd-month-folder${open?' open':''}">
+      <div class="rd-month-head" onclick="toggleRelMonth('${m}')">
+        <div class="rd-month-icon">${open?'📂':'📁'}</div>
+        <div><div class="rd-month-name">${label}</div><div class="rd-month-meta">${items.length} despesa${items.length!==1?'s':''} · ${nUsers} colaborador${nUsers!==1?'es':''}</div></div>
+        <div class="rd-month-total">${fmtBRL(sum(items))}</div>
+        <div class="rd-month-arrow">▶</div>
+      </div>
+      ${open?`<div class="rd-month-body">${renderUsers(items)}</div>`:''}
+    </div>`;
   }).join('');
 }
 
